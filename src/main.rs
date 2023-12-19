@@ -5,6 +5,11 @@ use reqwest::Url;
 
 const APP_USER_ARGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
+#[derive(serde::Deserialize)]
+struct ConnectStatus {
+    ssid: String,
+}
+
 struct Controller {
     url: Url,
     client: Client,
@@ -25,6 +30,15 @@ impl Controller {
             .form(&[("user", user), ("pass", pwd)])
             .send()
     }
+
+    pub fn connected_ssid(&mut self) -> reqwest::Result<Option<String>> {
+        self.url.set_path("goform/get_connetsta_cfg");
+        self.client
+            .get(self.url.as_str())
+            .send()?
+            .json::<ConnectStatus>()
+            .map(|a| (a.ssid != "NULL").then_some(a.ssid))
+    }
 }
 
 fn main() {
@@ -39,4 +53,8 @@ fn main() {
     if let Err(e) = ctlr.login("admin", "admin") {
         eprintln!("error: Failed to login, {e}")
     };
+
+    if let Ok(Some(ssid)) = ctlr.connected_ssid() {
+        println!("Connected to: {ssid}");
+    }
 }
