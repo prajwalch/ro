@@ -74,6 +74,14 @@ impl Controller {
             .form(&[("mode", "reboot")])
             .send()
     }
+
+    pub fn reset(&mut self) -> reqwest::Result<Response> {
+        self.url.set_path("goform/set_restore");
+        self.client
+            .post(self.url.as_str())
+            .form(&[("type", "restore")])
+            .send()
+    }
 }
 
 #[derive(Deserialize)]
