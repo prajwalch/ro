@@ -1,13 +1,25 @@
+mod console;
+
+use std::io::{self, Write};
 use std::net::Ipv4Addr;
+use std::thread;
+use std::time::Duration;
 
 use reqwest::blocking::{Client, Response};
 use reqwest::Url;
+use serde::Deserialize;
 
 const APP_USER_ARGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
-#[derive(serde::Deserialize)]
+#[derive(Deserialize)]
 struct ConnectStatus {
     ssid: String,
+}
+
+#[derive(Deserialize)]
+struct RouterInfo {
+    upspeed: String,
+    downspeed: String,
 }
 
 struct Controller {
@@ -39,6 +51,14 @@ impl Controller {
             .json::<ConnectStatus>()
             .map(|a| (a.ssid != "NULL").then_some(a.ssid))
     }
+
+    pub fn router_info(&mut self) -> reqwest::Result<RouterInfo> {
+        self.url.set_path("goform/get_router_info");
+        self.client
+            .get(self.url.as_str())
+            .send()?
+            .json::<RouterInfo>()
+    }
 }
 
 fn main() {
@@ -56,5 +76,40 @@ fn main() {
 
     if let Ok(Some(ssid)) = ctlr.connected_ssid() {
         println!("Connected to: {ssid}");
+    }
+
+    let mut stdout = io::stdout().lock();
+
+    while let Ok(router_info) = ctlr.router_info() {
+        // Clear the line.
+        write!(stdout, "\x1b[1K").unwrap();
+        // Move cursor to start of a line.
+        write!(stdout, "\r").unwrap();
+        stdout.flush().unwrap();
+
+        let upspeed = router_info.upspeed.parse::<f64>().unwrap();
+        let downspeed = router_info.downspeed.parse::<f64>().unwrap();
+
+        write!(
+            stdout,
+            "↑ {} {} \t ↓ {} {}",
+            bold!(upspeed),
+            dim!(speed_unit(upspeed)),
+            bold!(downspeed),
+            dim!(speed_unit(downspeed)),
+        )
+        .unwrap();
+        stdout.flush().unwrap();
+        thread::sleep(Duration::from_secs(2));
+    }
+}
+
+fn speed_unit(speed: f64) -> &'static str {
+    if speed < 1024.0 {
+        "B/s"
+    } else if (speed / 1024.0).round() > 1024.0 {
+        "MB/s"
+    } else {
+        "KB/s"
     }
 }
