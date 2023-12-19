@@ -1,65 +1,12 @@
 mod console;
+mod controller;
 
 use std::io::{self, Write};
 use std::net::Ipv4Addr;
 use std::thread;
 use std::time::Duration;
 
-use reqwest::blocking::{Client, Response};
-use reqwest::Url;
-use serde::Deserialize;
-
-const APP_USER_ARGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
-
-#[derive(Deserialize)]
-struct ConnectStatus {
-    ssid: String,
-}
-
-#[derive(Deserialize)]
-struct RouterInfo {
-    upspeed: String,
-    downspeed: String,
-}
-
-struct Controller {
-    url: Url,
-    client: Client,
-}
-
-impl Controller {
-    pub fn new(addr: Ipv4Addr) -> reqwest::Result<Controller> {
-        let url = Url::parse(&format!("http://{addr}")).unwrap();
-        let client = Client::builder().user_agent(APP_USER_ARGENT).build()?;
-
-        Ok(Self { url, client })
-    }
-
-    pub fn login(&mut self, user: &str, pwd: &str) -> reqwest::Result<Response> {
-        self.url.set_path("login/auth");
-        self.client
-            .post(self.url.as_str())
-            .form(&[("user", user), ("pass", pwd)])
-            .send()
-    }
-
-    pub fn connected_ssid(&mut self) -> reqwest::Result<Option<String>> {
-        self.url.set_path("goform/get_connetsta_cfg");
-        self.client
-            .get(self.url.as_str())
-            .send()?
-            .json::<ConnectStatus>()
-            .map(|a| (a.ssid != "NULL").then_some(a.ssid))
-    }
-
-    pub fn router_info(&mut self) -> reqwest::Result<RouterInfo> {
-        self.url.set_path("goform/get_router_info");
-        self.client
-            .get(self.url.as_str())
-            .send()?
-            .json::<RouterInfo>()
-    }
-}
+use crate::controller::Controller;
 
 fn main() {
     let mut ctlr = match Controller::new(Ipv4Addr::new(192, 168, 16, 1)) {
@@ -87,29 +34,8 @@ fn main() {
         write!(stdout, "\r").unwrap();
         stdout.flush().unwrap();
 
-        let upspeed = router_info.upspeed.parse::<f64>().unwrap();
-        let downspeed = router_info.downspeed.parse::<f64>().unwrap();
-
-        write!(
-            stdout,
-            "↑ {} {} \t ↓ {} {}",
-            bold!(upspeed),
-            dim!(speed_unit(upspeed)),
-            bold!(downspeed),
-            dim!(speed_unit(downspeed)),
-        )
-        .unwrap();
+        write!(stdout, "{router_info}").unwrap();
         stdout.flush().unwrap();
         thread::sleep(Duration::from_secs(2));
-    }
-}
-
-fn speed_unit(speed: f64) -> &'static str {
-    if speed < 1024.0 {
-        "B/s"
-    } else if (speed / 1024.0).round() > 1024.0 {
-        "MB/s"
-    } else {
-        "KB/s"
     }
 }
