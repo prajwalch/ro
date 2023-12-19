@@ -66,6 +66,14 @@ impl Controller {
             .json::<RepeaterScanResult>()
             .map(|info| info.list)
     }
+
+    pub fn reboot(&mut self) -> reqwest::Result<Response> {
+        self.url.set_path("goform/set_reboot");
+        self.client
+            .post(self.url.as_str())
+            .form(&[("mode", "reboot")])
+            .send()
+    }
 }
 
 #[derive(Deserialize)]
