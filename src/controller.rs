@@ -30,6 +30,11 @@ impl Controller {
             .send()
     }
 
+    pub fn router_info(&mut self) -> reqwest::Result<RouterInfo> {
+        self.url.set_path("goform/get_router_info");
+        self.client.get(self.url.as_str()).send()?.json()
+    }
+
     pub fn connected_ssid(&mut self) -> reqwest::Result<Option<String>> {
         // This structure is used only to get value of a `ssid` field from the
         // json which we will get as a response.
@@ -46,9 +51,20 @@ impl Controller {
             .map(|a| (a.ssid != "NULL").then_some(a.ssid))
     }
 
-    pub fn router_info(&mut self) -> reqwest::Result<RouterInfo> {
-        self.url.set_path("goform/get_router_info");
-        self.client.get(self.url.as_str()).send()?.json()
+    pub fn scan_wifi(&mut self) -> reqwest::Result<Vec<ScannedWifi>> {
+        // This structure is used only to get value of a `list` field from the
+        // json which we will get as a response.
+        #[derive(Deserialize)]
+        struct RepeaterScanResult {
+            list: Vec<ScannedWifi>,
+        }
+
+        self.url.set_path("goform/get_RepeaterScan_cfg");
+        self.client
+            .get(self.url.as_str())
+            .send()?
+            .json::<RepeaterScanResult>()
+            .map(|info| info.list)
     }
 }
 
@@ -56,6 +72,13 @@ impl Controller {
 pub struct RouterInfo {
     pub upspeed: String,
     pub downspeed: String,
+}
+
+#[derive(Deserialize)]
+pub struct ScannedWifi {
+    pub channel: String,
+    pub ssid: String,
+    pub signal: String,
 }
 
 impl fmt::Display for RouterInfo {
