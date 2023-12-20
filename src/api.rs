@@ -6,6 +6,7 @@ use crate::{bold, dim};
 use reqwest::blocking::{Client, Response};
 use reqwest::Url;
 use serde::Deserialize;
+use serde_json::Value;
 
 type ApiResult<T> = reqwest::Result<T>;
 
@@ -32,39 +33,36 @@ impl ApiClient {
 
     pub fn router_info(&mut self) -> ApiResult<RouterInfo> {
         self.url.set_path("goform/get_router_info");
-        self.client.get(self.url.as_str()).send()?.json()
+        let res = self.client.get(self.url.as_str()).send()?.json::<Value>()?;
+
+        let upspeed = res["upspeed"]
+            .as_str()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_default();
+        let downspeed = res["downspeed"]
+            .as_str()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_default();
+
+        Ok(RouterInfo { upspeed, downspeed })
     }
 
     pub fn connected_ssid(&mut self) -> ApiResult<Option<String>> {
-        // This structure is used only to get value of a `ssid` field from the
-        // json which we will get as a response.
-        #[derive(Deserialize)]
-        struct ConnectStatus {
-            ssid: String,
-        }
-
         self.url.set_path("goform/get_connetsta_cfg");
         self.client
             .get(self.url.as_str())
             .send()?
-            .json::<ConnectStatus>()
-            .map(|a| (a.ssid != "NULL").then_some(a.ssid))
+            .json::<Value>()
+            .map(|res| res["ssid"].as_str().map(|s| s.to_owned()))
     }
 
     pub fn scan_wifi(&mut self) -> ApiResult<Vec<ScannedWifi>> {
-        // This structure is used only to get value of a `list` field from the
-        // json which we will get as a response.
-        #[derive(Deserialize)]
-        struct RepeaterScanResult {
-            list: Vec<ScannedWifi>,
-        }
-
         self.url.set_path("goform/get_RepeaterScan_cfg");
         self.client
             .get(self.url.as_str())
             .send()?
-            .json::<RepeaterScanResult>()
-            .map(|info| info.list)
+            .json::<Value>()
+            .map(|mut res| serde_json::from_value(res["list"].take()).unwrap_or_default())
     }
 
     pub fn reboot(&mut self) -> ApiResult<Response> {
@@ -86,8 +84,8 @@ impl ApiClient {
 
 #[derive(Deserialize)]
 pub struct RouterInfo {
-    pub upspeed: String,
-    pub downspeed: String,
+    pub upspeed: f64,
+    pub downspeed: f64,
 }
 
 #[derive(Deserialize)]
@@ -103,16 +101,14 @@ impl fmt::Display for RouterInfo {
             f,
             "↑ {} {} \t ↓ {} {}",
             bold!(self.upspeed),
-            dim!(speed_unit(&self.upspeed)),
+            dim!(speed_unit(self.upspeed)),
             bold!(self.downspeed),
-            dim!(speed_unit(&self.downspeed)),
+            dim!(speed_unit(self.downspeed)),
         )
     }
 }
 
-fn speed_unit(speed: &str) -> &'static str {
-    let speed = speed.parse::<f64>().unwrap_or_default();
-
+fn speed_unit(speed: f64) -> &'static str {
     if speed < 1024.0 {
         "B/s"
     } else if (speed / 1024.0).round() > 1024.0 {
