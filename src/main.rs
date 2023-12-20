@@ -35,11 +35,7 @@ fn main() -> ExitCode {
 
     match args.nth(1).as_deref() {
         Some("--scan") => {
-            let wifi_list = api.scan_wifi().unwrap();
-
-            for wifi in wifi_list {
-                println!("{} \t {} \t {}", wifi.channel, wifi.ssid, wifi.signal);
-            }
+            show_wifi_list(&mut api).unwrap();
             return ExitCode::SUCCESS;
         }
         Some("--reboot") => {
@@ -80,4 +76,33 @@ fn main() -> ExitCode {
     }
 
     ExitCode::SUCCESS
+}
+
+fn show_wifi_list(api: &mut ApiClient) -> io::Result<()> {
+    let mut stdout = io::stdout().lock();
+
+    writeln!(stdout, "{:<30} {:<5}", "SSID", "SIGNAL")?;
+    stdout.flush()?;
+
+    while let Ok(ref list) = api.scan_wifi() {
+        for wifi in list {
+            writeln!(stdout, "{:<30} {:<5}", wifi.ssid, wifi.signal)?;
+        }
+        stdout.flush()?;
+        thread::sleep(Duration::from_secs(8));
+
+        let num_lines = list.len();
+        let mut num_cleared_lines = 0;
+
+        // Clear all the printed list.
+        while num_cleared_lines < num_lines {
+            // Move cursor to beginning of the previous line.
+            write!(stdout, "\x1b[F")?;
+            // Clear from cursor (beginning) to the end of the line.
+            write!(stdout, "\x1b[0K")?;
+
+            num_cleared_lines += 1;
+        }
+    }
+    Ok(())
 }
