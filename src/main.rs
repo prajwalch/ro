@@ -92,7 +92,7 @@ fn show_wifi_status(api: &mut ApiClient) -> io::Result<()> {
     let mut stdout = BufWriter::new(io::stdout().lock());
 
     let ssid = api.connected_ssid();
-    let ssid = match ssid.as_ref() {
+    let ssid = match ssid {
         Ok(Some(ref s)) => s,
         Ok(None) | Err(_) => "FAILED TO RETRIVE",
     };
