@@ -49,11 +49,10 @@ impl ApiClient {
 
     pub fn connected_ssid(&mut self) -> ApiResult<Option<String>> {
         self.url.set_path("goform/get_connetsta_cfg");
-        self.client
-            .get(self.url.as_str())
-            .send()?
-            .json::<Value>()
-            .map(|res| res["ssid"].as_str().map(|s| s.to_owned()))
+        let res = self.client.get(self.url.as_str()).send()?.json::<Value>()?;
+        let ssid = res["ssid"].as_str();
+
+        Ok(ssid.and_then(|s| (s != "NULL").then(|| s.to_owned())))
     }
 
     pub fn scan_wifi(&mut self) -> ApiResult<Vec<ScannedWifi>> {
