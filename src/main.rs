@@ -57,7 +57,6 @@ fn main() -> anyhow::Result<ExitCode> {
 
 fn show_wifi_list(api: &mut ApiClient) -> anyhow::Result<()> {
     let mut stdout = BufWriter::new(io::stdout().lock());
-
     writeln!(stdout, "{:<30} {:<5}", "SSID", "SIGNAL")?;
     stdout.flush()?;
 
