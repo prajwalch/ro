@@ -1,7 +1,7 @@
 mod api;
 mod console;
 
-use std::io::{self, Write};
+use std::io::{self, BufWriter, Write};
 use std::net::Ipv4Addr;
 use std::process::ExitCode;
 use std::time::Duration;
@@ -57,23 +57,7 @@ fn main() -> ExitCode {
         }
         None => (),
     }
-
-    if let Ok(Some(ssid)) = api.connected_ssid() {
-        println!("Connected to: {ssid}");
-    }
-    let mut stdout = io::stdout().lock();
-
-    while let Ok(router_info) = api.router_info() {
-        // Clear the line.
-        write!(stdout, "\x1b[1K").unwrap();
-        // Move cursor to start of a line.
-        write!(stdout, "\r").unwrap();
-        stdout.flush().unwrap();
-
-        write!(stdout, "{router_info}").unwrap();
-        stdout.flush().unwrap();
-        thread::sleep(Duration::from_secs(2));
-    }
+    show_wifi_status(&mut api).unwrap();
 
     ExitCode::SUCCESS
 }
@@ -104,5 +88,41 @@ fn show_wifi_list(api: &mut ApiClient) -> io::Result<()> {
             num_cleared_lines += 1;
         }
     }
+    Ok(())
+}
+
+fn show_wifi_status(api: &mut ApiClient) -> io::Result<()> {
+    let mut stdout = BufWriter::new(io::stdout().lock());
+
+    let ssid = api.connected_ssid();
+    let ssid = match ssid.as_ref() {
+        Ok(Some(ref s)) => s,
+        Ok(None) | Err(_) => "FAILED TO RETRIVE",
+    };
+    writeln!(stdout, "{:>8}: {ssid}", "SSID")?;
+    writeln!(stdout, "{:>8}: 0", "Signal")?;
+
+    while let (Ok(router_info), Ok(wifi_list)) = (api.router_info(), api.scan_wifi()) {
+        if let Some(info) = wifi_list.iter().find(|w| w.ssid == ssid) {
+            // Move cursor to beginning of the previous line.
+            write!(stdout, "\x1b[F")?;
+            // Clear the line.
+            write!(stdout, "\x1b[2K")?;
+            // Move cursor to beginning of the line.
+            write!(stdout, "\r")?;
+            writeln!(stdout, "{:>8}: {}", "Signal", info.signal)?;
+        }
+
+        // Clear the line.
+        write!(stdout, "\x1b[2K")?;
+        // Move cursor to beginning of the line.
+        write!(stdout, "\r")?;
+        write!(stdout, "{:>8}: {router_info}", "Speed")?;
+        stdout.flush()?;
+    }
+    writeln!(stdout)?;
+    writeln!(stdout, "error: API request failed, Closing app...")?;
+    stdout.flush()?;
+
     Ok(())
 }
