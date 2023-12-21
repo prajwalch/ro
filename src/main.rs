@@ -92,17 +92,32 @@ fn show_wifi_status(api: &mut ApiClient) -> anyhow::Result<()> {
     writeln!(stdout, "{:>8}: {ssid}", "SSID")?;
     writeln!(stdout, "{:>8}: 0", "Signal")?;
 
+    // Always append the newline at the bottom so that if API functions fail
+    // the error message can appear from the newline; otherwise move the cursor
+    // up by checking this variable after the call to API functions succeed.
+    let mut is_cursor_at_bottom = false;
+
     loop {
         let router_info = api.router_info().context("Failed to fetch router info")?;
         let wifi_list = api.scan_wifi().context("Failed to fetch wifi list")?;
 
-        if let Some(info) = wifi_list.iter().find(|wifi| wifi.ssid == ssid) {
+        if is_cursor_at_bottom {
             cursor_up!(stdout)?;
+        }
+        if let Some(info) = wifi_list.iter().find(|wifi| wifi.ssid == ssid) {
+            // From the speed printed line, move to the previous line.
+            cursor_up!(stdout)?;
+            // Clear the old printed data.
             clear_line!(stdout)?;
+            // And reprint the updated one.
             writeln!(stdout, "{:>8}: {}", "Signal", info.signal)?;
         }
+        // We are already at the right line, clear the old printed data.
         clear_line!(stdout)?;
-        write!(stdout, "{:>8}: {router_info}", "Speed")?;
+        // And reprint the updated one.
+        writeln!(stdout, "{:>8}: {router_info}", "Speed")?;
         stdout.flush()?;
+        // Final `writeln` moves the cursor at the newline.
+        is_cursor_at_bottom = true;
     }
 }
