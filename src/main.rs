@@ -9,6 +9,8 @@ use std::{env, thread};
 
 use crate::api::ApiClient;
 
+use anyhow::Context;
+
 const USAGE: &str = "Usage: ro [OPTIONS]
 
 Options:
@@ -18,58 +20,51 @@ Options:
   --help        Print this help
 ";
 
-fn main() -> ExitCode {
-    let mut api = match ApiClient::new(Ipv4Addr::new(192, 168, 16, 1)) {
-        Ok(api) => api,
-        Err(err) => {
-            eprintln!("error: Failed to initilize controller, {err}");
-            return ExitCode::FAILURE;
-        }
-    };
+fn main() -> anyhow::Result<ExitCode> {
+    let mut api = ApiClient::new(Ipv4Addr::new(192, 168, 16, 1))
+        .context("Failed to initilize the api client")?;
+    api.login("admin", "admin")
+        .context("Failed to logged into the router")?;
 
-    if let Err(e) = api.login("admin", "admin") {
-        eprintln!("error: Failed to login, {e}");
-        return ExitCode::FAILURE;
-    };
     let mut args = env::args();
-
     match args.nth(1).as_deref() {
         Some("--scan") => {
-            show_wifi_list(&mut api).unwrap();
-            return ExitCode::SUCCESS;
+            show_wifi_list(&mut api)?;
+            return Ok(ExitCode::SUCCESS);
         }
         Some("--reboot") => {
-            api.reboot().unwrap();
-            return ExitCode::SUCCESS;
+            api.reboot().context("Failed to reboot the router")?;
+            return Ok(ExitCode::SUCCESS);
         }
         Some("--reset") => {
-            api.reset().unwrap();
-            return ExitCode::SUCCESS;
+            api.reset().context("Failed to reset the router")?;
+            return Ok(ExitCode::SUCCESS);
         }
         Some("--help") => {
             println!("{USAGE}");
-            return ExitCode::SUCCESS;
+            return Ok(ExitCode::SUCCESS);
         }
         Some(unknown) => {
             println!("error: Unknown option, '{unknown}'");
             println!("{USAGE}");
-            return ExitCode::FAILURE;
+            return Ok(ExitCode::FAILURE);
         }
         None => (),
     }
-    show_wifi_status(&mut api).unwrap();
-
-    ExitCode::SUCCESS
+    show_wifi_status(&mut api)?;
+    Ok(ExitCode::SUCCESS)
 }
 
-fn show_wifi_list(api: &mut ApiClient) -> io::Result<()> {
+fn show_wifi_list(api: &mut ApiClient) -> anyhow::Result<()> {
     let mut stdout = BufWriter::new(io::stdout().lock());
 
     writeln!(stdout, "{:<30} {:<5}", "SSID", "SIGNAL")?;
     stdout.flush()?;
 
-    while let Ok(ref list) = api.scan_wifi() {
-        for wifi in list {
+    loop {
+        let list = api.scan_wifi().context("Failed to fetch wifi list")?;
+
+        for wifi in &list {
             writeln!(stdout, "{:<30} {:<5}", wifi.ssid, wifi.signal)?;
         }
         stdout.flush()?;
@@ -85,10 +80,9 @@ fn show_wifi_list(api: &mut ApiClient) -> io::Result<()> {
             num_cleared_lines += 1;
         }
     }
-    Ok(())
 }
 
-fn show_wifi_status(api: &mut ApiClient) -> io::Result<()> {
+fn show_wifi_status(api: &mut ApiClient) -> anyhow::Result<()> {
     let mut stdout = BufWriter::new(io::stdout().lock());
 
     let ssid = api.connected_ssid();
@@ -99,7 +93,10 @@ fn show_wifi_status(api: &mut ApiClient) -> io::Result<()> {
     writeln!(stdout, "{:>8}: {ssid}", "SSID")?;
     writeln!(stdout, "{:>8}: 0", "Signal")?;
 
-    while let (Ok(router_info), Ok(wifi_list)) = (api.router_info(), api.scan_wifi()) {
+    loop {
+        let router_info = api.router_info().context("Failed to fetch router info")?;
+        let wifi_list = api.scan_wifi().context("Failed to fetch wifi list")?;
+
         if let Some(info) = wifi_list.iter().find(|wifi| wifi.ssid == ssid) {
             cursor_up!(stdout)?;
             clear_line!(stdout)?;
@@ -109,9 +106,4 @@ fn show_wifi_status(api: &mut ApiClient) -> io::Result<()> {
         write!(stdout, "{:>8}: {router_info}", "Speed")?;
         stdout.flush()?;
     }
-    writeln!(stdout)?;
-    writeln!(stdout, "error: API request failed, Closing app...")?;
-    stdout.flush()?;
-
-    Ok(())
 }
