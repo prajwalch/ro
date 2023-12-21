@@ -80,11 +80,8 @@ fn show_wifi_list(api: &mut ApiClient) -> io::Result<()> {
 
         // Clear all the printed list.
         while num_cleared_lines < num_lines {
-            // Move cursor to beginning of the previous line.
-            write!(stdout, "\x1b[F")?;
-            // Clear from cursor (beginning) to the end of the line.
-            write!(stdout, "\x1b[0K")?;
-
+            cursor_up!(stdout)?;
+            clear_line!(stdout)?;
             num_cleared_lines += 1;
         }
     }
@@ -104,19 +101,11 @@ fn show_wifi_status(api: &mut ApiClient) -> io::Result<()> {
 
     while let (Ok(router_info), Ok(wifi_list)) = (api.router_info(), api.scan_wifi()) {
         if let Some(info) = wifi_list.iter().find(|w| w.ssid == ssid) {
-            // Move cursor to beginning of the previous line.
-            write!(stdout, "\x1b[F")?;
-            // Clear the line.
-            write!(stdout, "\x1b[2K")?;
-            // Move cursor to beginning of the line.
-            write!(stdout, "\r")?;
+            cursor_up!(stdout)?;
+            clear_line!(stdout)?;
             writeln!(stdout, "{:>8}: {}", "Signal", info.signal)?;
         }
-
-        // Clear the line.
-        write!(stdout, "\x1b[2K")?;
-        // Move cursor to beginning of the line.
-        write!(stdout, "\r")?;
+        clear_line!(stdout)?;
         write!(stdout, "{:>8}: {router_info}", "Speed")?;
         stdout.flush()?;
     }
