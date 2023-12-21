@@ -100,7 +100,7 @@ fn show_wifi_status(api: &mut ApiClient) -> io::Result<()> {
     writeln!(stdout, "{:>8}: 0", "Signal")?;
 
     while let (Ok(router_info), Ok(wifi_list)) = (api.router_info(), api.scan_wifi()) {
-        if let Some(info) = wifi_list.iter().find(|w| w.ssid == ssid) {
+        if let Some(info) = wifi_list.iter().find(|wifi| wifi.ssid == ssid) {
             cursor_up!(stdout)?;
             clear_line!(stdout)?;
             writeln!(stdout, "{:>8}: {}", "Signal", info.signal)?;
