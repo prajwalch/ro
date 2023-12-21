@@ -84,12 +84,9 @@ fn show_wifi_list(api: &mut ApiClient) -> anyhow::Result<()> {
 fn show_wifi_status(api: &mut ApiClient) -> anyhow::Result<()> {
     let mut stdout = BufWriter::new(io::stdout().lock());
 
-    let ssid = api.connected_ssid();
-    let ssid = match ssid {
-        Ok(Some(ref s)) => s,
-        Ok(None) | Err(_) => "FAILED TO RETRIVE",
-    };
-    writeln!(stdout, "{:>8}: {ssid}", "SSID")?;
+    let ssid = api.connected_ssid().context("Failed to fetch ssid")?;
+    let ssid = ssid.as_ref().map_or("UNKNOWN", |s| s.as_str());
+    writeln!(stdout, "{:>8}: {ssid}", "SSID",)?;
     writeln!(stdout, "{:>8}: 0", "Signal")?;
 
     // Always append the newline at the bottom so that if API functions fail
