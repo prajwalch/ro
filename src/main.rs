@@ -14,20 +14,28 @@ use anyhow::Context;
 const USAGE: &str = "Usage: ro [OPTIONS]
 
 Options:
-  --scan        Scan and display all the available wifi
-  --reboot      Reboot the router
-  --reset       Reset the router
-  --help        Print this help
+  --connect <SSID> <PWD> Connect to the given ssid and display status
+  --scan                 Scan and display all the available wifi
+  --reboot               Reboot the router
+  --reset                Reset the router
+  --help                 Print this help
 ";
 
 fn main() -> anyhow::Result<ExitCode> {
-    let mut api = ApiClient::new(Ipv4Addr::new(192, 168, 16, 1))
+    let mut api = ApiClient::new(Ipv4Addr::new(192, 168, 16, 1), "admin", "admin")
         .context("Failed to initilize the api client")?;
-    api.login("admin", "admin")
-        .context("Failed to logged into the router")?;
+    api.login().context("Failed to logged into the router")?;
 
     let mut args = env::args();
     match args.nth(1).as_deref() {
+        Some("--connect") => {
+            if let (Some(ssid), Some(pwd)) = (args.next(), args.next()) {
+                connect_wifi(&mut api, &ssid, &pwd)?;
+            } else {
+                eprintln!("error: Incomplete credentials\n{USAGE}");
+                return Ok(ExitCode::FAILURE);
+            }
+        }
         Some("--scan") => {
             show_wifi_list(&mut api)?;
             return Ok(ExitCode::SUCCESS);
@@ -53,6 +61,18 @@ fn main() -> anyhow::Result<ExitCode> {
     }
     show_wifi_status(&mut api)?;
     Ok(ExitCode::SUCCESS)
+}
+
+fn connect_wifi(api: &mut ApiClient, ssid: &str, pwd: &str) -> anyhow::Result<()> {
+    println!("Hunting and connecting'{ssid}', be patience ;)");
+    api.connect(ssid, pwd).context("Failed to connect ssid")?;
+
+    println!("Done, now waiting 60s for router to be reboot XD");
+    thread::sleep(Duration::from_secs(60));
+
+    // Relogin into the router.
+    api.login().context("Failed to logged into the router")?;
+    Ok(())
 }
 
 fn show_wifi_list(api: &mut ApiClient) -> anyhow::Result<()> {

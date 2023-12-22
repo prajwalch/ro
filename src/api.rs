@@ -10,24 +10,31 @@ use serde_json::Value;
 
 type ApiResult<T> = reqwest::Result<T>;
 
-pub struct ApiClient {
+pub struct ApiClient<'cred> {
+    user: &'cred str,
+    pwd: &'cred str,
     url: Url,
     client: Client,
 }
 
-impl ApiClient {
-    pub fn new(addr: Ipv4Addr) -> ApiResult<ApiClient> {
+impl<'cred> ApiClient<'cred> {
+    pub fn new(addr: Ipv4Addr, user: &'cred str, pwd: &'cred str) -> ApiResult<ApiClient<'cred>> {
         let url = Url::parse(&format!("http://{addr}")).unwrap();
         let client = Client::builder().build()?;
 
-        Ok(Self { url, client })
+        Ok(Self {
+            user,
+            pwd,
+            url,
+            client,
+        })
     }
 
-    pub fn login(&mut self, user: &str, pwd: &str) -> ApiResult<Response> {
+    pub fn login(&mut self) -> ApiResult<Response> {
         self.url.set_path("login/auth");
         self.client
             .post(self.url.as_str())
-            .form(&[("user", user), ("pass", pwd)])
+            .form(&[("user", self.user), ("pass", self.pwd)])
             .send()
     }
 
@@ -45,6 +52,39 @@ impl ApiClient {
             .unwrap_or_default();
 
         Ok(RouterInfo { upspeed, downspeed })
+    }
+
+    pub fn wlan_info(&mut self) -> ApiResult<WlanInfo> {
+        self.url.set_path("/goform/get_wifi_info");
+        self.client.get(self.url.as_str()).send()?.json()
+    }
+
+    pub fn connect(&mut self, ssid: &str, pwd: &str) -> ApiResult<Response> {
+        loop {
+            if let Some(wifi) = self.scan_wifi()?.iter().find(|wifi| wifi.ssid == ssid) {
+                let (security, arithmetic) = wifi
+                    .security
+                    .split_once('/')
+                    .unwrap_or((&wifi.security, "undefined"));
+                let wlan = self.wlan_info()?;
+                let data = &[
+                    ("type", "seteasycfg"),
+                    ("opermode", "repeater"),
+                    ("channel", &wifi.channel),
+                    ("bssid", &wifi.bssid),
+                    ("ssid", &wifi.ssid),
+                    ("security", security),
+                    ("arithmetic", arithmetic),
+                    ("key", pwd),
+                    ("ext_ch", &wifi.ext_ch),
+                    ("wlan2ssid", &wlan.wlanssid),
+                    ("wlan2psw", wlan.wlanpsw.as_deref().unwrap_or("123456789")),
+                    ("routepwd", self.pwd),
+                ];
+                self.url.set_path("/goform/set_EasyCfg");
+                return self.client.post(self.url.as_str()).form(&data).send();
+            };
+        }
     }
 
     pub fn connected_ssid(&mut self) -> ApiResult<Option<String>> {
@@ -88,10 +128,21 @@ pub struct RouterInfo {
 }
 
 #[derive(Deserialize)]
+pub struct WlanInfo {
+    pub wlanssid: String,
+    pub wlanpswmode: String,
+    pub wlanpswencry: String,
+    pub wlanpsw: Option<String>,
+}
+
+#[derive(Deserialize)]
 pub struct ScannedWifi {
     pub channel: String,
     pub ssid: String,
+    pub bssid: String,
+    pub security: String,
     pub signal: String,
+    pub ext_ch: String,
 }
 
 impl fmt::Display for RouterInfo {
