@@ -85,7 +85,7 @@ fn show_wifi_status(api: &mut ApiClient) -> anyhow::Result<()> {
     let mut stdout = BufWriter::new(io::stdout().lock());
 
     let ssid = api.connected_ssid().context("Failed to fetch ssid")?;
-    let ssid = ssid.as_ref().map_or("UNKNOWN", |s| s.as_str());
+    let ssid = ssid.as_deref().unwrap_or("UNKNOWN");
     writeln!(stdout, "{:>8}: {ssid}", "SSID",)?;
     writeln!(stdout, "{:>8}: 0", "Signal")?;
 
