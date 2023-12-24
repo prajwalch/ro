@@ -59,32 +59,28 @@ impl<'cred> ApiClient<'cred> {
         self.client.get(self.url.as_str()).send()?.json()
     }
 
-    pub fn connect(&mut self, ssid: &str, pwd: &str) -> ApiResult<Response> {
-        loop {
-            if let Some(wifi) = self.scan_wifi()?.iter().find(|wifi| wifi.ssid == ssid) {
-                let (security, arithmetic) = wifi
-                    .security
-                    .split_once('/')
-                    .unwrap_or((&wifi.security, "undefined"));
-                let wlan = self.wlan_info()?;
-                let data = &[
-                    ("type", "seteasycfg"),
-                    ("opermode", "repeater"),
-                    ("channel", &wifi.channel),
-                    ("bssid", &wifi.bssid),
-                    ("ssid", &wifi.ssid),
-                    ("security", security),
-                    ("arithmetic", arithmetic),
-                    ("key", pwd),
-                    ("ext_ch", &wifi.ext_ch),
-                    ("wlan2ssid", &wlan.wlanssid),
-                    ("wlan2psw", wlan.wlanpsw.as_deref().unwrap_or("123456789")),
-                    ("routepwd", self.pwd),
-                ];
-                self.url.set_path("/goform/set_EasyCfg");
-                return self.client.post(self.url.as_str()).form(&data).send();
-            };
-        }
+    pub fn connect(&mut self, wifi: &ScannedWifi, pwd: &str) -> ApiResult<Response> {
+        let (security, arithmetic) = wifi
+            .security
+            .split_once('/')
+            .unwrap_or((&wifi.security, "undefined"));
+        let wlan = self.wlan_info()?;
+        let data = &[
+            ("type", "seteasycfg"),
+            ("opermode", "repeater"),
+            ("channel", &wifi.channel),
+            ("bssid", &wifi.bssid),
+            ("ssid", &wifi.ssid),
+            ("security", security),
+            ("arithmetic", arithmetic),
+            ("key", pwd),
+            ("ext_ch", &wifi.ext_ch),
+            ("wlan2ssid", &wlan.wlanssid),
+            ("wlan2psw", wlan.wlanpsw.as_deref().unwrap_or("123456789")),
+            ("routepwd", self.pwd),
+        ];
+        self.url.set_path("/goform/set_EasyCfg");
+        self.client.post(self.url.as_str()).form(&data).send()
     }
 
     pub fn connected_ssid(&mut self) -> ApiResult<Option<String>> {

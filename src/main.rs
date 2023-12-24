@@ -65,8 +65,13 @@ fn main() -> anyhow::Result<ExitCode> {
 
 fn connect_wifi(api: &mut ApiClient, ssid: &str, pwd: &str) -> anyhow::Result<()> {
     println!("Hunting and connecting'{ssid}', be patience ;)");
-    api.connect(ssid, pwd).context("Failed to connect ssid")?;
 
+    loop {
+        if let Some(wifi) = api.scan_wifi()?.iter().find(|wifi| wifi.ssid == ssid) {
+            api.connect(wifi, pwd).context("Failed to connect ssid")?;
+            break;
+        }
+    }
     println!("Done, now waiting 60s for router to be reboot XD");
     thread::sleep(Duration::from_secs(60));
 
