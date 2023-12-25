@@ -68,7 +68,8 @@ fn connect_wifi(api: &mut ApiClient, ssid: &str, pwd: &str) -> anyhow::Result<()
 
     loop {
         if let Some(wifi) = api.scan_wifi()?.iter().find(|wifi| wifi.ssid == ssid) {
-            api.connect(wifi, pwd).context("Failed to connect ssid")?;
+            api.connect_wifi(wifi, pwd)
+                .context("Failed to connect ssid")?;
             break;
         }
     }

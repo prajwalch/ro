@@ -59,7 +59,7 @@ impl<'cred> ApiClient<'cred> {
         self.client.get(self.url.as_str()).send()?.json()
     }
 
-    pub fn connect(&mut self, wifi: &ScannedWifi, pwd: &str) -> ApiResult<Response> {
+    pub fn connect_wifi(&mut self, wifi: &ScannedWifi, pwd: &str) -> ApiResult<Response> {
         let (security, arithmetic) = wifi
             .security
             .split_once('/')
